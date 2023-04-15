@@ -17,6 +17,7 @@ from torch_geometric.nn import GCNConv,global_mean_pool,global_add_pool
 from sklearn.metrics import mean_squared_error,r2_score
 import numpy as np
 from conv import GNN_node,GNN_node_Virtualnode
+from torch.nn import TransformerEncoderLayer
 import logging
 
 
@@ -41,6 +42,7 @@ class GNN(torch.nn.Module):
         self.W_cnn = nn.ModuleList([nn.Conv2d(in_channels=1,out_channels=1,kernel_size=2*window+1,stride=1,padding=window) for _ in range(num_layers)])
         self.W_out = nn.ModuleList([nn.Linear(2*emb_dim,2*emb_dim) for _ in range(num_layers)])
         self.W_interaction = nn.Linear(2*emb_dim,num_tasks)
+        self.attention_layers = TransformerEncoderLayer(emb_dim,4)
  
         if self.num_layers < 2:
             raise ValueError("Number of GNN layers must be greater than 1.")
@@ -81,6 +83,14 @@ class GNN(torch.nn.Module):
             for i in range(self.num_layers):
                 xs = torch.relu(self.W_cnn[i](xs))
             xs = torch.squeeze(torch.squeeze(xs,0),0)
+            
+            #Apply attention
+            xs = xs.unsqueeze(0)
+            xs = xs.permute(1,0,2)
+            xs = self.attention_layers(xs)
+            xs = xs.permute(1,0,2)
+            xs = xs.squeeze(0)
+            
             xs = torch.unsqueeze(torch.mean(xs,0),0)
             cnn_list.append(xs)
         cnn_vector = cnn_list[0]
